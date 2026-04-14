@@ -15,6 +15,19 @@ DEFAULT_VOICE = os.environ.get('PIPER_VOICE', 'de-thorsten-medium')
 MAX_PROCS = int(os.environ.get('PIPER_MAX_PROCS', '1'))
 VOICES_DIR = '/usr/share/piper-voices'
 
+# Find piper binary
+PIPER_PATH = None
+possible_paths = [
+    '/app/piper/piper',
+    '/app/piper',
+    'piper',
+]
+
+for path in possible_paths:
+    if os.path.isfile(path) and os.access(path, os.X_OK):
+        PIPER_PATH = path
+        break
+
 
 def get_voice_path(voice_name):
     """Get path to voice model"""
@@ -30,11 +43,14 @@ def synthesize(text, voice=None, speed=1.0):
     if voice is None:
         voice = DEFAULT_VOICE
 
+    if PIPER_PATH is None:
+        return None, "Piper binary not found"
+
     voice_path = get_voice_path(voice)
     voice_config = f"{voice_path}.json"
 
     if not os.path.exists(voice_path):
-        return None, f"Voice not found: {voice}"
+        return None, f"Voice not found: {voice} at {voice_path}"
 
     # Create temp files
     with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
@@ -47,7 +63,7 @@ def synthesize(text, voice=None, speed=1.0):
     try:
         # Build Piper command
         cmd = [
-            '/app/piper/piper',
+            PIPER_PATH,
             '--model', voice_path,
             '--config', voice_config,
             '--input', input_file,
@@ -55,7 +71,7 @@ def synthesize(text, voice=None, speed=1.0):
         ]
 
         # Run Piper
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
 
         if result.returncode != 0:
             return None, f"Piper error: {result.stderr}"
@@ -81,7 +97,11 @@ def synthesize(text, voice=None, speed=1.0):
 
 @app.route('/health', methods=['GET'])
 def health():
-    return jsonify({'status': 'ok', 'voice': DEFAULT_VOICE})
+    return jsonify({
+        'status': 'ok',
+        'voice': DEFAULT_VOICE,
+        'piper_path': PIPER_PATH
+    })
 
 
 @app.route('/api/tts', methods=['POST'])
@@ -113,18 +133,22 @@ def list_voices():
     voices = []
 
     try:
-        for f in os.listdir(VOICES_DIR):
-            if f.endswith('.onnx'):
-                voice_id = f.replace('.onnx', '')
-                voices.append({
-                    'id': voice_id,
-                    'name': voice_id.replace('de-thorsten-', 'Thorsten ').title(),
-                    'default': voice_id == DEFAULT_VOICE
-                })
-    except:
-        pass
+        if os.path.exists(VOICES_DIR):
+            for f in os.listdir(VOICES_DIR):
+                if f.endswith('.onnx') and not f.endswith('.json'):
+                    voice_id = f.replace('.onnx', '')
+                    voices.append({
+                        'id': voice_id,
+                        'name': voice_id.replace('de-thorsten-', 'Thorsten ').title(),
+                        'default': voice_id == DEFAULT_VOICE
+                    })
+    except Exception as e:
+        print(f"Error listing voices: {e}")
 
-    return jsonify({'voices': voices, 'default': DEFAULT_VOICE})
+    return jsonify({
+        'voices': voices,
+        'default': DEFAULT_VOICE
+    })
 
 
 if __name__ == '__main__':
@@ -133,20 +157,29 @@ if __name__ == '__main__':
     print(f"Voices dir: {VOICES_DIR}")
     print(f"Port: 10200")
 
-    # Check if Piper exists
-    piper_path = '/app/piper/piper'
-    if not os.path.exists(piper_path):
-        print(f"ERROR: Piper not found at {piper_path}")
+    # Check Piper binary
+    if PIPER_PATH is None:
+        print("ERROR: Piper binary not found!")
+        print("Checked paths:", possible_paths)
+        # List what's in /app
+        if os.path.exists('/app'):
+            print("Contents of /app:", os.listdir('/app'))
+            if os.path.exists('/app/piper'):
+                print("Contents of /app/piper:", os.listdir('/app/piper'))
         exit(1)
+
+    print(f"✓ Piper binary: {PIPER_PATH}")
 
     # Check default voice
     voice_path = get_voice_path(DEFAULT_VOICE)
     if not os.path.exists(voice_path):
         print(f"ERROR: Default voice not found at {voice_path}")
+        # List available voices
+        if os.path.exists(VOICES_DIR):
+            print("Available voices:", os.listdir(VOICES_DIR))
         exit(1)
 
-    print(f"✓ Piper binary: {piper_path}")
     print(f"✓ Default voice: {voice_path}")
-    print(f"Server ready!")
+    print(f"Server ready on port 10200!")
 
     app.run(host='0.0.0.0', port=10200, threaded=True)
