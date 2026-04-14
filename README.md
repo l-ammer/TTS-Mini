@@ -1,5 +1,11 @@
 # TTS-Mini
 
+> ⚠️ **Hinweis: Vorläufiger Prototyp / Pre-Release**
+> 
+> Diese Software ist ein **technischer Test und Proof-of-Concept**. Die Audioqualität der generierten Sprache ist derzeit **nicht zufriedenstellend** und entspricht nicht produktionsreifen Standards.
+>
+> Das Projekt dient der Evaluation der technischen Pipeline (PDF-Upload → Text-Extraktion → TTS → MP3). Eine Neuimplementierung mit besseren TTS-Modellen (z.B. Coqui TTS, Bark, oder kommerzielle APIs) ist für die Zukunft geplant.
+
 Einfaches webbasiertes Text-to-Speech System für deutsche Sprache. PDF-Dateien werden in gesprochene Audio-Dateien (MP3) umgewandelt.
 
 ## Funktionen
@@ -51,6 +57,27 @@ Derzeit verfügbar:
 - `de-thorsten-low` - Schnell, geringere Qualität
 - `de-thorsten-medium` - Standardqualität (empfohlen)
 - `de-thorsten-high` - Beste Qualität, langsamer
+
+## Bekannte Einschränkungen & Prototyp-Status
+
+### Audioqualität
+Die aktuell verwendete **Piper TTS**-Stimme (Thorsten) liefert für längere Texte eine **unzureichende Qualität**:
+- Roboterhafter Klang
+- Unnatürliche Betonung bei Satzgrenzen
+- Gelegentliche Aussetzer bei der Chunk-Verarbeitung
+
+**Empfohlene Verwendung:** Nur für kurze Texte (< 1000 Zeichen) oder technische Tests.
+
+### Technische Limitierungen
+- **Flask Development Server** im Piper-Container (nicht produktionsreif)
+- Einzelne TTS-Chunks können bei hoher Last fehlschlagen (500er Fehler)
+- Keine Wiederholungslogik für fehlgeschlagene Chunks implementiert
+
+### Roadmap (Geplant)
+- [ ] Ersetzen von Piper durch modernere TTS-Engine
+- [ ] Bessere Chunk-Verarbeitung mit Retry-Logik
+- [ ] WSGI-Server (gunicorn) für Piper-Container
+- [ ] Vorkonfigurierte Sprechstile (nachdenklich, aktiv, neutral)
 
 ## Lizenz
 
