@@ -30,13 +30,21 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 
-// Rate limiting
-const limiter = rateLimit({
+// Rate limiting - skip for GET requests (polling), apply to writes
+const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 50, // 50 requests per window
+  max: 100, // 100 requests per window for general API
+  message: { error: 'Too many requests, please try again later' },
+  skip: (req) => req.method === 'GET' // Skip limit for polling requests
+});
+app.use('/api/', apiLimiter);
+
+// Stricter limit for POST/DELETE operations
+const writeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30, // 30 write operations per 15 min
   message: { error: 'Too many requests, please try again later' }
 });
-app.use('/api/', limiter);
 
 // Stricter rate limit for uploads
 const uploadLimiter = rateLimit({
