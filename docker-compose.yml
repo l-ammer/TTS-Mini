@@ -37,14 +37,15 @@ services:
 
   # Piper TTS: Wyoming protocol server with German voice
   tts-piper:
-    image: ghcr.io/rhasspy/wyoming-piper:latest
+    build:
+      context: ./piper
+      dockerfile: Dockerfile
     container_name: tts-piper
     restart: always
-    command: >
-      --voice de-thorsten-medium
-      --max-piper-procs 1
+    environment:
+      - PIPER_VOICE=de-thorsten-medium
+      - PIPER_MAX_PROCS=1
     volumes:
-      - piper_voices:/usr/share/piper-voices:ro
       - tts_storage:/storage/tts-output
     networks:
       - tts_internal
