@@ -1,0 +1,33 @@
+# Environment variables
+.env
+.env.local
+
+# Node modules
+node_modules/
+**/node_modules/
+
+# Build outputs
+**/dist/
+
+# Storage and data
+storage/tts-output/*
+!storage/tts-output/.gitkeep
+data/
+*.db
+*.db-journal
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
