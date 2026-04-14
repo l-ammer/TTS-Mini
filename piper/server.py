@@ -1,52 +1,98 @@
 #!/usr/bin/env python3
 """
 Simple HTTP TTS server for Piper
-Compatible with Wyoming protocol but using simple HTTP for easier integration
 """
 import os
+import sys
 import subprocess
 import tempfile
+import urllib.request
 from flask import Flask, request, jsonify, Response
 
 app = Flask(__name__)
 
 DEFAULT_VOICE = os.environ.get('PIPER_VOICE', 'de-thorsten-medium')
-MAX_PROCS = int(os.environ.get('PIPER_MAX_PROCS', '1'))
-VOICES_DIR = os.path.expanduser('~/.local/share/piper-tts')
+VOICES_DIR = "/usr/share/piper-voices"
 
-def ensure_voice(voice_name):
-    """Download voice if not present"""
-    voice_path = f"{VOICES_DIR}/{voice_name}.onnx"
-    if os.path.exists(voice_path):
-        return voice_path
+# Ensure voices directory exists
+os.makedirs(VOICES_DIR, exist_ok=True)
 
-    # Download using piper's built-in download
-    print(f"Downloading voice: {voice_name}")
+# Voice download URLs (direct raw links)
+VOICE_URLS = {
+    'de-thorsten-medium': {
+        'model': 'https://github.com/rhasspy/piper/releases/download/v0.0.2/de-thorsten-medium.onnx',
+        'config': 'https://github.com/rhasspy/piper/releases/download/v0.0.2/de-thorsten-medium.onnx.json'
+    },
+    'de-thorsten-low': {
+        'model': 'https://github.com/rhasspy/piper/releases/download/v0.0.2/de-thorsten-low.onnx',
+        'config': 'https://github.com/rhasspy/piper/releases/download/v0.0.2/de-thorsten-low.onnx.json'
+    },
+    'de-thorsten-high': {
+        'model': 'https://github.com/rhasspy/piper/releases/download/v0.0.2/de-thorsten-high.onnx',
+        'config': 'https://github.com/rhasspy/piper/releases/download/v0.0.2/de-thorsten-high.onnx.json'
+    }
+}
+
+def download_file(url, dest):
+    """Download a file with progress"""
     try:
-        subprocess.run(
-            ['python', '-m', 'piper', 'download-voice', voice_name],
-            check=True,
-            capture_output=True,
-            timeout=120
-        )
+        print(f"Downloading {url}...")
+        urllib.request.urlretrieve(url, dest)
+        print(f"Downloaded to {dest}")
+        return True
     except Exception as e:
         print(f"Download failed: {e}")
+        return False
+
+def ensure_voice(voice_name):
+    """Ensure voice files are present"""
+    if voice_name not in VOICE_URLS:
         return None
 
-    return voice_path if os.path.exists(voice_path) else None
+    model_path = f"{VOICES_DIR}/{voice_name}.onnx"
+    config_path = f"{model_path}.json"
+
+    # Download model if needed
+    if not os.path.exists(model_path) or os.path.getsize(model_path) < 1000:
+        if not download_file(VOICE_URLS[voice_name]['model'], model_path):
+            return None
+
+    # Download config if needed
+    if not os.path.exists(config_path) or os.path.getsize(config_path) < 100:
+        if not download_file(VOICE_URLS[voice_name]['config'], config_path):
+            return None
+
+    return model_path if os.path.exists(model_path) else None
+
+def get_piper_path():
+    """Find piper executable"""
+    paths = [
+        '/app/piper/piper',
+        'piper',
+        '/usr/local/bin/piper'
+    ]
+    for p in paths:
+        if os.path.exists(p) and os.access(p, os.X_OK):
+            return p
+    # Try which
+    try:
+        result = subprocess.run(['which', 'piper'], capture_output=True, text=True)
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except:
+        pass
+    return None
 
 def synthesize(text, voice=None, speed=1.0):
-    """
-    Synthesize text using Piper
-    Returns WAV bytes
-    """
+    """Synthesize text using Piper"""
     if voice is None:
         voice = DEFAULT_VOICE
 
-    # Ensure voice is available
     voice_path = ensure_voice(voice)
     if voice_path is None:
         return None, f"Voice not available: {voice}"
+
+    config_path = f"{voice_path}.json"
 
     # Create temp files
     with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
@@ -57,21 +103,23 @@ def synthesize(text, voice=None, speed=1.0):
         output_file = f.name
 
     try:
-        # Build Piper command using python module
+        piper_path = get_piper_path()
+        if piper_path is None:
+            return None, "Piper executable not found"
+
         cmd = [
-            'python', '-m', 'piper',
+            piper_path,
             '--model', voice_path,
+            '--config', config_path,
             '--input', input_file,
             '--output_file', output_file
         ]
 
-        # Run Piper
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
 
         if result.returncode != 0:
             return None, f"Piper error: {result.stderr}"
 
-        # Read output WAV
         with open(output_file, 'rb') as f:
             wav_data = f.read()
 
@@ -82,7 +130,6 @@ def synthesize(text, voice=None, speed=1.0):
     except Exception as e:
         return None, str(e)
     finally:
-        # Cleanup
         try:
             os.unlink(input_file)
             os.unlink(output_file)
@@ -95,7 +142,8 @@ def health():
     return jsonify({
         'status': 'ok',
         'voice': DEFAULT_VOICE,
-        'voice_available': voice_path is not None
+        'voice_available': voice_path is not None,
+        'voices_dir': VOICES_DIR
     })
 
 @app.route('/api/tts', methods=['POST'])
@@ -124,19 +172,13 @@ def tts():
 def list_voices():
     """List available voices"""
     voices = []
-
-    # Common German voices
-    for v in ['de-thorsten-low', 'de-thorsten-medium', 'de-thorsten-high']:
+    for v in VOICE_URLS.keys():
         voices.append({
             'id': v,
             'name': v.replace('de-thorsten-', 'Thorsten ').title(),
             'default': v == DEFAULT_VOICE
         })
-
-    return jsonify({
-        'voices': voices,
-        'default': DEFAULT_VOICE
-    })
+    return jsonify({'voices': voices, 'default': DEFAULT_VOICE})
 
 if __name__ == '__main__':
     print(f"Piper TTS Server starting...")
@@ -144,9 +186,12 @@ if __name__ == '__main__':
     print(f"Voices dir: {VOICES_DIR}")
     print(f"Port: 10200")
 
-    # Pre-download default voice on startup
-    print(f"Pre-downloading {DEFAULT_VOICE}...")
+    # Download default voice
+    print(f"Ensuring voice {DEFAULT_VOICE} is available...")
     ensure_voice(DEFAULT_VOICE)
+
+    # List available voices
+    print(f"Available voices: {os.listdir(VOICES_DIR) if os.path.exists(VOICES_DIR) else 'None'}")
 
     print(f"Server ready on port 10200!")
     app.run(host='0.0.0.0', port=10200, threaded=True)
