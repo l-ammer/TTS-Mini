@@ -2,9 +2,11 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install dependencies
+# Install dependencies including git
 RUN apt-get update && apt-get install -y \
     curl \
+    git \
+    git-lfs \
     libsndfile1 \
     && rm -rf /var/lib/apt/lists/*
 
@@ -18,12 +20,19 @@ RUN curl -L -o piper_linux_x86_64.tar.gz \
 # Set PATH to include piper directory
 ENV PATH="/app/piper:${PATH}"
 
-# Download German voices
+# Clone piper-voices repository (contains all voice models)
+RUN git lfs install \
+    && git clone --depth 1 --filter=blob:none --sparse \
+       "https://github.com/rhasspy/piper-voices.git" /tmp/piper-voices \
+    && cd /tmp/piper-voices \
+    && git sparse-checkout set de/de_THORSTEN \
+    && git checkout
+
+# Copy German voices to target directory
 RUN mkdir -p /usr/share/piper-voices \
-    && curl -L -o /usr/share/piper-voices/de-thorsten-medium.onnx \
-    "https://huggingface.co/rhasspy/piper-voices/resolve/main/de/de_THORSTEN/de-thorsten-medium.onnx" \
-    && curl -L -o /usr/share/piper-voices/de-thorsten-medium.onnx.json \
-    "https://huggingface.co/rhasspy/piper-voices/resolve/main/de/de_THORSTEN/de-thorsten-medium.onnx.json" \
+    && cp /tmp/piper-voices/de/de_THORSTEN/*.onnx /usr/share/piper-voices/ 2>/dev/null || true \
+    && cp /tmp/piper-voices/de/de_THORSTEN/*.json /usr/share/piper-voices/ 2>/dev/null || true \
+    && rm -rf /tmp/piper-voices \
     && ls -la /usr/share/piper-voices/
 
 # Create simple HTTP server script for TTS
