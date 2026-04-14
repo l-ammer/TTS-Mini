@@ -47,6 +47,7 @@ services:
       - PIPER_MAX_PROCS=1
     volumes:
       - tts_storage:/storage/tts-output
+      - piper_voices:/usr/share/piper-voices
     networks:
       - tts_internal
     deploy:

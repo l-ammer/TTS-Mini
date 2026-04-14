@@ -186,12 +186,20 @@ if __name__ == '__main__':
     print(f"Voices dir: {VOICES_DIR}")
     print(f"Port: 10200")
 
-    # Download default voice
+    # Download default voice - CRITICAL, exit if fails
     print(f"Ensuring voice {DEFAULT_VOICE} is available...")
-    ensure_voice(DEFAULT_VOICE)
+    voice_path = ensure_voice(DEFAULT_VOICE)
+    if voice_path is None:
+        print(f"FATAL: Could not download voice {DEFAULT_VOICE}")
+        sys.exit(1)
+    print(f"Voice ready: {voice_path}")
 
     # List available voices
-    print(f"Available voices: {os.listdir(VOICES_DIR) if os.path.exists(VOICES_DIR) else 'None'}")
+    if os.path.exists(VOICES_DIR):
+        files = os.listdir(VOICES_DIR)
+        print(f"Voice files in {VOICES_DIR}: {[f for f in files if f.endswith('.onnx')]}")
+    else:
+        print(f"WARNING: Voices directory does not exist: {VOICES_DIR}")
 
     print(f"Server ready on port 10200!")
     app.run(host='0.0.0.0', port=10200, threaded=True)
