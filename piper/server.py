@@ -111,7 +111,7 @@ def synthesize(text, voice=None, speed=1.0):
             piper_path,
             '--model', voice_path,
             '--config', config_path,
-            '--input', input_file,
+            '--input_file', input_file,
             '--output_file', output_file
         ]
 
