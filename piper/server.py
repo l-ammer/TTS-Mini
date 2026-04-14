@@ -4,7 +4,6 @@ Simple HTTP TTS server for Piper
 Compatible with Wyoming protocol but using simple HTTP for easier integration
 """
 import os
-import json
 import subprocess
 import tempfile
 from flask import Flask, request, jsonify, Response
@@ -13,27 +12,28 @@ app = Flask(__name__)
 
 DEFAULT_VOICE = os.environ.get('PIPER_VOICE', 'de-thorsten-medium')
 MAX_PROCS = int(os.environ.get('PIPER_MAX_PROCS', '1'))
-VOICES_DIR = '/usr/share/piper-voices'
+VOICES_DIR = os.path.expanduser('~/.local/share/piper-tts')
 
-# Find piper binary
-PIPER_PATH = None
-possible_paths = [
-    '/app/piper/piper',
-    '/app/piper',
-    'piper',
-]
+def ensure_voice(voice_name):
+    """Download voice if not present"""
+    voice_path = f"{VOICES_DIR}/{voice_name}.onnx"
+    if os.path.exists(voice_path):
+        return voice_path
 
-for path in possible_paths:
-    if os.path.isfile(path) and os.access(path, os.X_OK):
-        PIPER_PATH = path
-        break
+    # Download using piper's built-in download
+    print(f"Downloading voice: {voice_name}")
+    try:
+        subprocess.run(
+            ['python', '-m', 'piper', 'download-voice', voice_name],
+            check=True,
+            capture_output=True,
+            timeout=120
+        )
+    except Exception as e:
+        print(f"Download failed: {e}")
+        return None
 
-
-def get_voice_path(voice_name):
-    """Get path to voice model"""
-    voice_file = f"{voice_name}.onnx"
-    return os.path.join(VOICES_DIR, voice_file)
-
+    return voice_path if os.path.exists(voice_path) else None
 
 def synthesize(text, voice=None, speed=1.0):
     """
@@ -43,14 +43,10 @@ def synthesize(text, voice=None, speed=1.0):
     if voice is None:
         voice = DEFAULT_VOICE
 
-    if PIPER_PATH is None:
-        return None, "Piper binary not found"
-
-    voice_path = get_voice_path(voice)
-    voice_config = f"{voice_path}.json"
-
-    if not os.path.exists(voice_path):
-        return None, f"Voice not found: {voice} at {voice_path}"
+    # Ensure voice is available
+    voice_path = ensure_voice(voice)
+    if voice_path is None:
+        return None, f"Voice not available: {voice}"
 
     # Create temp files
     with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
@@ -61,11 +57,10 @@ def synthesize(text, voice=None, speed=1.0):
         output_file = f.name
 
     try:
-        # Build Piper command
+        # Build Piper command using python module
         cmd = [
-            PIPER_PATH,
+            'python', '-m', 'piper',
             '--model', voice_path,
-            '--config', voice_config,
             '--input', input_file,
             '--output_file', output_file
         ]
@@ -94,15 +89,14 @@ def synthesize(text, voice=None, speed=1.0):
         except:
             pass
 
-
 @app.route('/health', methods=['GET'])
 def health():
+    voice_path = ensure_voice(DEFAULT_VOICE)
     return jsonify({
         'status': 'ok',
         'voice': DEFAULT_VOICE,
-        'piper_path': PIPER_PATH
+        'voice_available': voice_path is not None
     })
-
 
 @app.route('/api/tts', methods=['POST'])
 def tts():
@@ -126,30 +120,23 @@ def tts():
 
     return Response(wav_data, mimetype='audio/wav')
 
-
 @app.route('/api/voices', methods=['GET'])
 def list_voices():
     """List available voices"""
     voices = []
 
-    try:
-        if os.path.exists(VOICES_DIR):
-            for f in os.listdir(VOICES_DIR):
-                if f.endswith('.onnx') and not f.endswith('.json'):
-                    voice_id = f.replace('.onnx', '')
-                    voices.append({
-                        'id': voice_id,
-                        'name': voice_id.replace('de-thorsten-', 'Thorsten ').title(),
-                        'default': voice_id == DEFAULT_VOICE
-                    })
-    except Exception as e:
-        print(f"Error listing voices: {e}")
+    # Common German voices
+    for v in ['de-thorsten-low', 'de-thorsten-medium', 'de-thorsten-high']:
+        voices.append({
+            'id': v,
+            'name': v.replace('de-thorsten-', 'Thorsten ').title(),
+            'default': v == DEFAULT_VOICE
+        })
 
     return jsonify({
         'voices': voices,
         'default': DEFAULT_VOICE
     })
-
 
 if __name__ == '__main__':
     print(f"Piper TTS Server starting...")
@@ -157,29 +144,9 @@ if __name__ == '__main__':
     print(f"Voices dir: {VOICES_DIR}")
     print(f"Port: 10200")
 
-    # Check Piper binary
-    if PIPER_PATH is None:
-        print("ERROR: Piper binary not found!")
-        print("Checked paths:", possible_paths)
-        # List what's in /app
-        if os.path.exists('/app'):
-            print("Contents of /app:", os.listdir('/app'))
-            if os.path.exists('/app/piper'):
-                print("Contents of /app/piper:", os.listdir('/app/piper'))
-        exit(1)
+    # Pre-download default voice on startup
+    print(f"Pre-downloading {DEFAULT_VOICE}...")
+    ensure_voice(DEFAULT_VOICE)
 
-    print(f"✓ Piper binary: {PIPER_PATH}")
-
-    # Check default voice
-    voice_path = get_voice_path(DEFAULT_VOICE)
-    if not os.path.exists(voice_path):
-        print(f"ERROR: Default voice not found at {voice_path}")
-        # List available voices
-        if os.path.exists(VOICES_DIR):
-            print("Available voices:", os.listdir(VOICES_DIR))
-        exit(1)
-
-    print(f"✓ Default voice: {voice_path}")
     print(f"Server ready on port 10200!")
-
     app.run(host='0.0.0.0', port=10200, threaded=True)
