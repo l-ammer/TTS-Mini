@@ -90,19 +90,31 @@ def synthesize(text, voice=None, speed=1.0):
 
     voice_path = ensure_voice(voice)
     if voice_path is None:
+        print(f"ERROR: Voice not available: {voice}")
         return None, f"Voice not available: {voice}"
 
     config_path = f"{voice_path}.json"
 
-    # Create temp files
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
-        f.write(text)
-        input_file = f.name
+    # Validate text length
+    text_len = len(text)
+    if text_len == 0:
+        return None, "Empty text"
+    if text_len > 5000:
+        print(f"WARNING: Text too long ({text_len} chars), truncating to 5000")
+        text = text[:5000]
 
-    with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as f:
-        output_file = f.name
+    input_file = None
+    output_file = None
 
     try:
+        # Create temp files
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8') as f:
+            f.write(text)
+            input_file = f.name
+
+        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as f:
+            output_file = f.name
+
         piper_path = get_piper_path()
         if piper_path is None:
             return None, "Piper executable not found"
@@ -115,26 +127,45 @@ def synthesize(text, voice=None, speed=1.0):
             '--output_file', output_file
         ]
 
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        print(f"Synthesizing {text_len} chars...")
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
 
         if result.returncode != 0:
-            return None, f"Piper error: {result.stderr}"
+            error_msg = result.stderr if result.stderr else "Unknown piper error"
+            print(f"Piper error (code {result.returncode}): {error_msg[:200]}")
+            return None, f"Piper error: {error_msg[:200]}"
+
+        # Verify output file exists and has content
+        if not os.path.exists(output_file):
+            return None, "Output file not created"
+
+        file_size = os.path.getsize(output_file)
+        if file_size < 100:
+            return None, f"Output file too small ({file_size} bytes)"
 
         with open(output_file, 'rb') as f:
             wav_data = f.read()
 
+        print(f"Synthesized OK: {len(wav_data)} bytes")
         return wav_data, None
 
     except subprocess.TimeoutExpired:
-        return None, "TTS timeout"
+        print(f"ERROR: TTS timeout after 60s for {text_len} chars")
+        return None, "TTS timeout - text too long or piper stuck"
+    except UnicodeEncodeError as e:
+        print(f"ERROR: Unicode encoding error: {e}")
+        return None, f"Text encoding error: {e}"
     except Exception as e:
-        return None, str(e)
+        print(f"ERROR: Synthesis failed: {type(e).__name__}: {e}")
+        return None, f"Synthesis error: {type(e).__name__}: {e}"
     finally:
-        try:
-            os.unlink(input_file)
-            os.unlink(output_file)
-        except:
-            pass
+        # Cleanup temp files
+        for f in [input_file, output_file]:
+            if f and os.path.exists(f):
+                try:
+                    os.unlink(f)
+                except:
+                    pass
 
 @app.route('/health', methods=['GET'])
 def health():
