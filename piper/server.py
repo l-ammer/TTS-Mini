@@ -17,19 +17,19 @@ VOICES_DIR = "/usr/share/piper-voices"
 # Ensure voices directory exists
 os.makedirs(VOICES_DIR, exist_ok=True)
 
-# Voice download URLs (direct raw links)
+# Voice download URLs (HuggingFace - piper-voices repo)
 VOICE_URLS = {
     'de-thorsten-medium': {
-        'model': 'https://github.com/rhasspy/piper/releases/download/v0.0.2/de-thorsten-medium.onnx',
-        'config': 'https://github.com/rhasspy/piper/releases/download/v0.0.2/de-thorsten-medium.onnx.json'
+        'model': 'https://huggingface.co/rhasspy/piper-voices/resolve/main/de/de_DE/thorsten/medium/de_DE-thorsten-medium.onnx',
+        'config': 'https://huggingface.co/rhasspy/piper-voices/resolve/main/de/de_DE/thorsten/medium/de_DE-thorsten-medium.onnx.json'
     },
     'de-thorsten-low': {
-        'model': 'https://github.com/rhasspy/piper/releases/download/v0.0.2/de-thorsten-low.onnx',
-        'config': 'https://github.com/rhasspy/piper/releases/download/v0.0.2/de-thorsten-low.onnx.json'
+        'model': 'https://huggingface.co/rhasspy/piper-voices/resolve/main/de/de_DE/thorsten/low/de_DE-thorsten-low.onnx',
+        'config': 'https://huggingface.co/rhasspy/piper-voices/resolve/main/de/de_DE/thorsten/low/de_DE-thorsten-low.onnx.json'
     },
     'de-thorsten-high': {
-        'model': 'https://github.com/rhasspy/piper/releases/download/v0.0.2/de-thorsten-high.onnx',
-        'config': 'https://github.com/rhasspy/piper/releases/download/v0.0.2/de-thorsten-high.onnx.json'
+        'model': 'https://huggingface.co/rhasspy/piper-voices/resolve/main/de/de_DE/thorsten/high/de_DE-thorsten-high.onnx',
+        'config': 'https://huggingface.co/rhasspy/piper-voices/resolve/main/de/de_DE/thorsten/high/de_DE-thorsten-high.onnx.json'
     }
 }
 

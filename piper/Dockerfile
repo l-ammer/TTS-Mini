@@ -16,11 +16,12 @@ RUN pip install flask --no-cache-dir
 
 # Pre-download default voice (de-thorsten-medium) for faster startup
 # Cache in image so it doesn't download on every container start
+# Voices hosted on HuggingFace (rhasspy/piper-voices)
 RUN mkdir -p /usr/share/piper-voices && \
     curl -L -o /usr/share/piper-voices/de-thorsten-medium.onnx \
-        "https://github.com/rhasspy/piper/releases/download/v0.0.2/de-thorsten-medium.onnx" && \
+        "https://huggingface.co/rhasspy/piper-voices/resolve/main/de/de_DE/thorsten/medium/de_DE-thorsten-medium.onnx" && \
     curl -L -o /usr/share/piper-voices/de-thorsten-medium.onnx.json \
-        "https://github.com/rhasspy/piper/releases/download/v0.0.2/de-thorsten-medium.onnx.json"
+        "https://huggingface.co/rhasspy/piper-voices/resolve/main/de/de_DE/thorsten/medium/de_DE-thorsten-medium.onnx.json"
 
 # Copy server
 COPY server.py /app/server.py
