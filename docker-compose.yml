@@ -1,44 +1,44 @@
 services:
   # Frontend: Vue 3 app served by nginx
-  vibe-voice:
+  tts:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: vibe-voice
+    container_name: tts
     restart: always
     networks:
       - web
-      - vibe-voice_internal
+      - tts_internal
     depends_on:
-      - vibe-voice-backend
+      - tts-backend
 
   # Backend: Node.js Express API + job processor
-  vibe-voice-backend:
+  tts-backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: vibe-voice-backend
+    container_name: tts-backend
     restart: always
     environment:
       - NODE_ENV=production
-      - PORT=3000
+      - PORT=4001
       - STORAGE_PATH=/storage/tts-output
-      - DATABASE_PATH=/data/vibe-voice.db
-      - PIPER_HOST=piper
+      - DATABASE_PATH=/data/tts.db
+      - PIPER_HOST=tts-piper
       - PIPER_PORT=10200
       - CONCURRENT_JOBS=1
     volumes:
       - tts_storage:/storage
       - tts_data:/data
     networks:
-      - vibe-voice_internal
+      - tts_internal
     depends_on:
-      - piper
+      - tts-piper
 
   # Piper TTS: Wyoming protocol server with German voice
-  piper:
+  tts-piper:
     image: ghcr.io/rhasspy/wyoming-piper:latest
-    container_name: vibe-voice-piper
+    container_name: tts-piper
     restart: always
     command: >
       --voice de-thorsten-medium
@@ -47,7 +47,7 @@ services:
       - piper_voices:/usr/share/piper-voices:ro
       - tts_storage:/storage/tts-output
     networks:
-      - vibe-voice_internal
+      - tts_internal
     deploy:
       resources:
         limits:
@@ -60,12 +60,12 @@ volumes:
     driver_opts:
       type: none
       o: bind
-      device: /home/linus/Projekte/TTS/storage/tts-output
+      device: /home/lam/services/tts/storage
   tts_data:
   piper_voices:
 
 networks:
-  vibe-voice_internal:
+  tts_internal:
     driver: bridge
   web:
     external: true
