@@ -66,9 +66,9 @@ docker-compose up -d --build
 
 ### 4. Zugriff
 
-- **Web Interface:** http://localhost:8080
-- **API:** http://localhost:3000
-- **Health Check:** http://localhost:3000/health
+- **Web Interface:** http://localhost:8080 (mapped via NPM)
+- **API (intern):** http://tts-backend:4001
+- **Health Check:** http://localhost:4001/health
 
 ### 5. Nginx Proxy Manager (optional, für Produktion)
 
@@ -116,6 +116,7 @@ Die App nutzt folgende Stimmen (automatisch aus dem `de-thorsten` Piper-Reposito
 │   Browser   │◄────►│  Nginx (Vue) │◄────►│   Express   │
 │             │      │   Frontend   │      │   Backend   │
 └─────────────┘      └──────────────┘      └──────┬──────┘
+     (Port 4001)         │    tts              │ tts-backend
                                                   │
                                                   ▼
                                            ┌─────────────┐
@@ -129,6 +130,7 @@ Die App nutzt folgende Stimmen (automatisch aus dem `de-thorsten` Piper-Reposito
                                            │  Wyoming    │
                                            │    TTS      │
                                            └─────────────┘
+                                               tts-piper
 ```
 
 ## Troubleshooting
